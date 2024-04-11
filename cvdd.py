@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial.distance import euclidean
 from scipy.spatial import distance_matrix
 from sklearn.neighbors import NearestNeighbors
+from collections import defaultdict
 from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
 
@@ -11,10 +12,57 @@ def conD(x,y):
     return res
 
 
+def build_graph(Edges): 
+    # function to represent graph as dictionary of lists
+    graph = defaultdict(list)
+    for edge in Edges:
+        u, v, w = edge
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    print(graph)
+    return graph
+
+def dfs(node, graph, visited, max_weights, current_max):
+    # depth first search algorithm to compute max weights for each possible path
+    visited[node] = True
+    # current_max was taken over from previous path, but should reset to 0 for every new immediate neighbor 
+    original_max = current_max # seemingly fixes problem, but don't understand why
+    for neighbor, weight in graph[node]:
+        if not visited[neighbor]:
+            current_max = max(original_max, weight)
+            max_weights[neighbor] = max(max_weights[neighbor], current_max)
+            dfs(neighbor, graph, visited, max_weights, current_max)
+
+
+def sum_max_edge_weights(Edges):
+    graph = build_graph(Edges)
+    nodes = np.unique(Edges[:, :2])
+
+    # Store all MinMax distances
+    max_weights = {}
+
+    # Perform DFS from each node to find maximum edge weights to other nodes
+    for node in nodes:
+        print(str(node))
+        # Initialize arrays to store maximum edge weights and visited nodes
+        max_weights[str(node)] = defaultdict(int)
+        visited = defaultdict(bool)
+        dfs(node, graph, visited, max_weights[str(node)], 0)
+        
+    print(max_weights)
+
+    # Compute the average of maximum edge weights
+    sum_max_weights = sum(sum(sub_dict.values()) for sub_dict in max_weights.values()) / 2 # divide by 2 because every path exists twice
+
+    return sum_max_weights
+
+
 def cvdd(X, y, k = 5, distance = euclidean):
 
     n = len(y)
     stats = {}
+    cluster_sizes = {}
+
 
     # get k Nearest neighbors
     knn = NearestNeighbors(n_neighbors =  k + 1).fit(X)
@@ -75,10 +123,33 @@ def cvdd(X, y, k = 5, distance = euclidean):
     print(drD)
     
 
+    for cluster in np.unique(y):
 
+        cluster_sizes["Cluster" + str(cluster)] = len(np.where(y == cluster)[0])
+
+
+        G = {
+            "no_vertices": len(np.where(y == cluster)[0]),
+            "MST_edges": np.zeros((len(np.where(y == cluster)[0]) - 1, 3)),
+            "MST_degrees": np.zeros((len(np.where(y == cluster)[0])), dtype=int),
+            "MST_parent": np.zeros((len(np.where(y == cluster)[0])), dtype=int),
+        }
+
+        # compute all pairwise distances inside a cluster
+        inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+
+        # compute MST using Lena's implementation of Prim algorithm
+        Edges, Degrees = MST_Edges(G, 0, inter_dists)
+
+        print(Edges)
 
 
 if __name__ == "__main__":
+
+    
+    # Edges = np.array([[1, 2, 0.43], [2, 3, 0.6], [3, 4, 0.5]])
+
+    # sum_max_edge_weights(Edges)
 
     # X = np.array([[1,2,3,4],[5,6,7,8]])
     # y = np.array([0,3])
