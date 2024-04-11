@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial.distance import euclidean
 from scipy.spatial import distance_matrix
-from clustpy.data import load_iris, load_mnist
+from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
 
 
@@ -155,20 +155,42 @@ if __name__ == "__main__":
     np.random.shuffle(combined_data)
 
     # Unpack the shuffled data
-    X_mnist, Y_mnist = zip(*combined_data)
+    # X_mnist, Y_mnist = zip(*combined_data)
+
+    # # Convert back to numpy arrays
+    # X_mnist = np.array(X_mnist)
+    # Y_mnist = np.array(Y_mnist)
+
+    # # Select only the first 10000 samples and labels
+    # X_mnist = X_mnist[:10000]
+    # y_mnist = Y_mnist[:10000]
+
+    # # print(X_mnist.shape)
+    # res = dcsi(X_mnist, y_mnist)
+
+    # print(res)
+
+
+    X_fmnist, Y_fmnist = load_fmnist()
+
+    # print(X_fmnist.shape)
+    # print(np.unique(Y_fmnist))
+
+    combined_data = list(zip(X_fmnist, Y_fmnist))
+    np.random.shuffle(combined_data)
+
+    # Unpack the shuffled data
+    X_fmnist, Y_fmnist = zip(*combined_data)
 
     # Convert back to numpy arrays
-    X_mnist = np.array(X_mnist)
-    Y_mnist = np.array(Y_mnist)
+    X_fmnist = np.array(X_fmnist)
+    Y_fmnist = np.array(Y_fmnist)
 
     # Select only the first 10000 samples and labels
-    X_mnist = X_mnist[:10000]
-    y_mnist = Y_mnist[:10000]
+    X_fmnist = X_fmnist[:10000]
+    y_fmnist = Y_fmnist[:10000]
 
     # print(X_mnist.shape)
-    res = dcsi(X_mnist, y_mnist)
+    res = dcsi(X_fmnist, y_fmnist)
 
     print(res)
-
-
-
