@@ -7,9 +7,9 @@ from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
 
 
-def conD(x,y):
+# def conD(x,y):
 
-    return res
+#     return res
 
 
 def build_graph(Edges): 
@@ -19,10 +19,10 @@ def build_graph(Edges):
         u, v, w = edge
         graph[u].append((v, w))
         graph[v].append((u, w))
-    print(graph)
+    #print(graph)
     return graph
 
-def dfs(node, graph, visited, max_weights, current_max):
+def dfs(node, graph, visited, max_weights_matrix, max_weights, current_max):
     # depth first search algorithm to compute max weights for each possible path
     visited[node] = True
     # current_max was taken over from previous path, but should reset to 0 for every new immediate neighbor 
@@ -31,38 +31,50 @@ def dfs(node, graph, visited, max_weights, current_max):
         if not visited[neighbor]:
             current_max = max(original_max, weight)
             max_weights[neighbor] = max(max_weights[neighbor], current_max)
-            dfs(neighbor, graph, visited, max_weights, current_max)
+
+            #print((node, neighbor))
+            #max_weights_matrix[int(node), int(neighbor)] = max(max_weights_matrix[int(node), int(neighbor)], current_max)
+
+            dfs(neighbor, graph, visited, max_weights_matrix, max_weights, current_max)
 
 
-def sum_max_edge_weights(Edges):
+def MinMaxDists(Edges):
+    """
+    Edges...np.array of shape n-1 x 3 with columns outgoing node, incoming node, path weight
+
+    returns dicitonary with MinMax Dists for all paths
+    """
     graph = build_graph(Edges)
     nodes = np.unique(Edges[:, :2])
 
+    #print(nodes)
     # Store all MinMax distances
     max_weights = {}
-
+    max_weights_matrix = np.zeros((len(nodes), len(nodes)))
     # Perform DFS from each node to find maximum edge weights to other nodes
     for node in nodes:
-        print(str(node))
+        #print(str(node))
+        #print(max_weights_matrix)
         # Initialize arrays to store maximum edge weights and visited nodes
         max_weights[str(node)] = defaultdict(int)
         visited = defaultdict(bool)
-        dfs(node, graph, visited, max_weights[str(node)], 0)
+        dfs(node, graph, visited, max_weights_matrix, max_weights[str(node)], 0)
         
-    print(max_weights)
-
+    #print(max_weights)
+    #print(max_weights_matrix)
+    
     # Compute the average of maximum edge weights
-    sum_max_weights = sum(sum(sub_dict.values()) for sub_dict in max_weights.values()) / 2 # divide by 2 because every path exists twice
+    #sum_max_weights = sum(sum(sub_dict.values()) for sub_dict in max_weights.values()) / 2 # divide by 2 because every path exists twice
 
-    return sum_max_weights
+    return max_weights
 
 
 def cvdd(X, y, k = 5, distance = euclidean):
 
     n = len(y)
     stats = {}
-    cluster_sizes = {}
-
+    n_clusters = len(np.unique(y))
+    seps_pairwise = np.zeros((n_clusters, n_clusters))
 
     # get k Nearest neighbors
     knn = NearestNeighbors(n_neighbors =  k + 1).fit(X)
@@ -76,21 +88,6 @@ def cvdd(X, y, k = 5, distance = euclidean):
     stats["fDen"] = stats["Den"] / np.max(stats["Den"])
 
     #print(stats)
-
-
-    # filling up DD Matrix (Def. 10)
-    DD = np.zeros((n, n))
-
-    for i in range(n):
-        for j in range(n):
-            if i != j:
-                pass
-                # DD[i,j] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[i,j]
-                # DD[j,i] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[i,j]
-
-
-    # filling up Rel Matrix (Def. 5)
-    #Rel = np.ones((n, n))
 
     fRel = np.zeros((n, n))
 
@@ -120,36 +117,120 @@ def cvdd(X, y, k = 5, distance = euclidean):
 
     drD += relD
     
-    print(drD)
+    #print(drD)
+
+    G = {
+        "no_vertices": n,
+        "MST_edges": np.zeros((n - 1, 3)),
+        "MST_degrees": np.zeros((n), dtype=int),
+        "MST_parent": np.zeros((n), dtype=int),
+    }
+
+    # compute MST using Lena's implementation of Prim algorithm
+    Edges_drD, _ = MST_Edges(G, 0, drD)   
+
+    conD = MinMaxDists(Edges_drD)
+
+
+    #print(list(conD.values())[0])
+    # print(list(conD.keys())[0] == str(float(0)))
+
+    # print(conD[str(float(0))])
+    # print(conD[str(float(0))][float(12)])
+    # print(conD[int(float(0))][int(float(2))])
+    # print("conD")
+
+    # filling up DD Matrix (Def. 10)
+    DD = np.zeros((n, n))
+
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                pass
+                DD[i,j] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(i))][float(j)]
+                DD[j,i] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(j))][float(i)]
+
+
+    # Compute pairwise Separation between all Clusters (Def. 11)
     
+    for i in range(n_clusters):
+        for j in range(n_clusters):
+            if i < j:  
+                seps_pairwise[i, j] = min(DD[np.where(y == i)[0], np.where(y == j)[0]])
+                seps_pairwise[j, i] = min(DD[np.where(y == i)[0], np.where(y == j)[0]])
+
+    seps_pairwise[np.where(seps_pairwise == 0)] = np.inf
+
+    #print(seps_pairwise)
+    # get minimal separation between one cluster and others
+    seps = np.min(seps_pairwise, axis= 0)
+
+    #print(seps)
+
+
+    coms = []
 
     for cluster in np.unique(y):
 
-        cluster_sizes["Cluster" + str(cluster)] = len(np.where(y == cluster)[0])
+        cluster_size = len(np.where(y == cluster)[0])
 
 
         G = {
-            "no_vertices": len(np.where(y == cluster)[0]),
-            "MST_edges": np.zeros((len(np.where(y == cluster)[0]) - 1, 3)),
-            "MST_degrees": np.zeros((len(np.where(y == cluster)[0])), dtype=int),
-            "MST_parent": np.zeros((len(np.where(y == cluster)[0])), dtype=int),
+            "no_vertices": cluster_size,
+            "MST_edges": np.zeros((cluster_size - 1, 3)),
+            "MST_degrees": np.zeros((cluster_size), dtype=int),
+            "MST_parent": np.zeros((cluster_size), dtype=int),
         }
 
         # compute all pairwise distances inside a cluster
         inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
 
         # compute MST using Lena's implementation of Prim algorithm
-        Edges, Degrees = MST_Edges(G, 0, inter_dists)
+        Edges_pD, _ = MST_Edges(G, 0, inter_dists)
 
-        print(Edges)
+        pD = MinMaxDists(Edges_pD)
+
+        # compute sum of pD inside the cluster
+        sum_pD = sum(sum(sub_dict.values()) for sub_dict in pD.values()) / 2 # divide by 2 because every path exists twice
+        #print(sum_pD)
+
+        Mean_Ci = 1 / cluster_size * sum_pD 
+
+        #print(Mean_Ci)
+
+        Std_Ci = ((sum_pD - Mean_Ci * (cluster_size * (cluster_size - 1) / 2)) / (1 / cluster_size - 1))**0.5
+
+        #print(Std_Ci)
+        # compute compactness (Def. 12)
+        com_Ci = (Std_Ci * Mean_Ci) / cluster_size 
+
+        print()
+        #print(com_Ci)
+        coms.append(com_Ci)
+
+    coms = np.array(coms)
+
+    # compute CVDD (Def. 13)
+    res = np.sum(seps) / np.sum(coms)
+
+    #print(res)
+    return res
+
+res = cvdd(X_iris, y_iris)
+print(res)
+
+
+
+
+
 
 
 if __name__ == "__main__":
 
     
-    # Edges = np.array([[1, 2, 0.43], [2, 3, 0.6], [3, 4, 0.5]])
+    Edges = np.array([[0, 1, 0.43], [1, 2, 0.6], [2, 3, 0.5]])
 
-    # sum_max_edge_weights(Edges)
+    MinMaxDists(Edges)
 
     # X = np.array([[1,2,3,4],[5,6,7,8]])
     # y = np.array([0,3])
