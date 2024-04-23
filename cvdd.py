@@ -5,7 +5,7 @@ from sklearn.neighbors import NearestNeighbors
 from collections import defaultdict
 from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
-
+import unittest
 
 # def conD(x,y):
 
@@ -42,7 +42,7 @@ def MinMaxDists(Edges):
     """
     Edges...np.array of shape n-1 x 3 with columns outgoing node, incoming node, path weight
 
-    returns dicitonary with MinMax Dists for all paths
+    returns dictionary with MinMax Dists for all paths
     """
     graph = build_graph(Edges)
     nodes = np.unique(Edges[:, :2])
@@ -79,15 +79,17 @@ def cvdd(X, y, k = 5, distance = euclidean):
     # get k Nearest neighbors
     knn = NearestNeighbors(n_neighbors =  k + 1).fit(X)
     distances, _ = knn.kneighbors(X)
+    #print(distances)
 
     # compute density estimation (Def. 2)
     stats["Den"] = np.mean(distances[:, 1:], axis=1)
     
+    #print(len(stats["Den"])) # works
 
     # compute outlier factor (Def. 3)
     stats["fDen"] = stats["Den"] / np.max(stats["Den"])
 
-    #print(stats)
+    #print(stats["fDen"]) # works
 
     fRel = np.zeros((n, n))
 
@@ -95,29 +97,32 @@ def cvdd(X, y, k = 5, distance = euclidean):
     drD = distance_matrix(X, X)
 
     # initialize Matrix for sum of Den(x_i) and Den(x_j)
-    Dens_added = np.zeros((n, n))
+    nD = np.zeros((n, n))
 
     for i in range(n):
         for j in range(n):
             if i < j:
 
                 # compute nD(x_i, x_j)
-                Dens_added[i, j] = stats["Den"][i] + stats["Den"][j]
-                Dens_added[j, i] = stats["Den"][j] + stats["Den"][i]
+                nD[i, j] = stats["Den"][i] + stats["Den"][j]
+                nD[j, i] = stats["Den"][j] + stats["Den"][i]
 
                 # Relative Density (Def. 5)
                 Rel_ij = stats["Den"][i] / stats["Den"][j]
                 Rel_ji = stats["Den"][j] / stats["Den"][i]
                 
                 # mutual Density factor (Def. 6)
-                fRel[i, j] = 1 - np.exp(1)**-(Rel_ij + Rel_ji - 2)
-                fRel[j, i] = 1 - np.exp(1)**-(Rel_ji + Rel_ij - 2)
+                fRel[i, j] = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
+                fRel[j, i] = 1 - np.exp(-(Rel_ji + Rel_ij - 2))
 
-    relD = fRel * Dens_added
+    #print(np.max(fRel))
+    #print(np.min(fRel))
+
+    relD = fRel * nD
 
     drD += relD
     
-    #print(drD)
+    #print(np.all(drD >= distance_matrix(X, X)))
 
     G = {
         "no_vertices": n,
@@ -126,54 +131,44 @@ def cvdd(X, y, k = 5, distance = euclidean):
         "MST_parent": np.zeros((n), dtype=int),
     }
 
+
+    #print(drD)
+
     # compute MST using Lena's implementation of Prim algorithm
     Edges_drD, _ = MST_Edges(G, 0, drD)   
 
+    #print(Edges_drD)
+
     conD = MinMaxDists(Edges_drD)
 
-
-    #print(list(conD.values())[0])
-    # print(list(conD.keys())[0] == str(float(0)))
-
-    # print(conD[str(float(0))])
-    # print(conD[str(float(0))][float(12)])
-    # print(conD[int(float(0))][int(float(2))])
-    # print("conD")
+    #print(conD)
 
     # filling up DD Matrix (Def. 10)
     DD = np.zeros((n, n))
 
     for i in range(n):
         for j in range(n):
-            if i != j:
-                pass
+            if i < j:
+                #pass
+                #print(conD[str(float(i))][float(j)] == conD[str(float(j))][float(i)])
                 DD[i,j] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(i))][float(j)]
                 DD[j,i] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(j))][float(i)]
 
+    #print(DD)
 
-    # Compute pairwise Separation between all Clusters (Def. 11)
-    
+    # Compute separations between one cluster and all others (Def. 11)
+    seps = []
+
     for i in range(n_clusters):
-        for j in range(n_clusters):
-            if i < j:  
-                seps_pairwise[i, j] = min(DD[np.where(y == i)[0], np.where(y == j)[0]])
-                seps_pairwise[j, i] = min(DD[np.where(y == i)[0], np.where(y == j)[0]])
-
-    seps_pairwise[np.where(seps_pairwise == 0)] = np.inf
-
-    #print(seps_pairwise)
-    # get minimal separation between one cluster and others
-    seps = np.min(seps_pairwise, axis= 0)
+            seps.append(np.min(DD[np.ix_(np.where(y == i)[0], np.where(y != i)[0])]))
 
     #print(seps)
 
-
     coms = []
 
-    for cluster in np.unique(y):
+    for cluster in range(n_clusters):
 
-        cluster_size = len(np.where(y == cluster)[0])
-
+        cluster_size = sum(y == cluster)
 
         G = {
             "no_vertices": cluster_size,
@@ -185,37 +180,44 @@ def cvdd(X, y, k = 5, distance = euclidean):
         # compute all pairwise distances inside a cluster
         inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
 
+        #print(inter_dists)
+
         # compute MST using Lena's implementation of Prim algorithm
         Edges_pD, _ = MST_Edges(G, 0, inter_dists)
 
+
+        #print(Edges_pD)
+
         pD = MinMaxDists(Edges_pD)
 
-        # compute sum of pD inside the cluster
-        sum_pD = sum(sum(sub_dict.values()) for sub_dict in pD.values()) / 2 # divide by 2 because every path exists twice
-        #print(sum_pD)
+        # flattening pD Dictionary
+        flattened_data = [value for sub_dict in pD.values() for value in sub_dict.values()]
 
-        Mean_Ci = 1 / cluster_size * sum_pD 
+        Mean_Ci = np.mean(flattened_data)
+        Std_Ci = np.std(flattened_data)
 
-        #print(Mean_Ci)
+        # print(Mean_Ci)
+        # print(Std_Ci)
 
-        Std_Ci = ((sum_pD - Mean_Ci * (cluster_size * (cluster_size - 1) / 2)) / (1 / cluster_size - 1))**0.5
-
-        #print(Std_Ci)
         # compute compactness (Def. 12)
-        com_Ci = (Std_Ci * Mean_Ci) / cluster_size 
+        #com_Ci = (1/n_paths) * Std_Ci * Mean_Ci
+        com_Ci = (1 / cluster_size) * Std_Ci * Mean_Ci
 
-        print()
         #print(com_Ci)
         coms.append(com_Ci)
 
-    coms = np.array(coms)
+
+    print(seps)
+    print(coms)
 
     # compute CVDD (Def. 13)
-    res = np.sum(seps) / np.sum(coms)
+    res = sum(seps) / sum(coms)
 
     #print(res)
     return res
 
+
+X_iris, y_iris = load_iris()
 res = cvdd(X_iris, y_iris)
 print(res)
 
@@ -227,7 +229,34 @@ print(res)
 
 if __name__ == "__main__":
 
+    # n = 10
     
+    # G = {
+    #     "no_vertices": n,
+    #     "MST_edges": np.zeros((n - 1, 3)),
+    #     "MST_degrees": np.zeros((n), dtype=int),
+    #     "MST_parent": np.zeros((n), dtype=int),
+    # }
+
+    # data = np.random.rand(n, 3)
+
+    # drD = distance_matrix(data, data)
+
+    # # compute MST using Lena's implementation of Prim algorithm
+    # Edges_drD, _ = MST_Edges(G, 0, drD)   
+
+    # print(Edges_drD)
+
+    # graph = build_graph(Edges_drD)
+
+    # print(graph)
+
+    # nodes = np.unique(Edges_drD[:, :2])
+
+    # print(nodes)
+
+
+
     Edges = np.array([[0, 1, 0.43], [1, 2, 0.6], [2, 3, 0.5]])
 
     MinMaxDists(Edges)
