@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import euclidean
 from scipy.spatial import distance_matrix
-from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
 
 
@@ -74,6 +73,8 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         # get corepoint indices
         corepoint_inds = np.sum(inter_dists <= eps["eps " + str(cluster)], axis=1) >= (minPts + 1) # +1 because distance to itself is 0
 
+        #print(corepoint_inds)
+
         # extract the distancematrix for corepoints only
         inter_dists_corepoints = inter_dists[corepoint_inds][:, corepoint_inds]
 
@@ -106,14 +107,14 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
                 seps[i, j] = separation(corepoints_all[keys_1[i]], corepoints_all[keys_1[j]])
                 connects[i, j] = max(connectedness[keys_2[i]], connectedness[keys_2[j]])
 
-    # print(seps)        
-    # print(connects)
+    print(seps)        
+    print(connects)
 
 
     if len(np.unique(y)) == 2:
         #print("2 classes only")
-        conn = connects[1, 1]
-        sep = seps[1, 1]
+        conn = connects[0, 1]
+        sep = seps[0, 1]
         q = sep / conn
         return q / (1 + q)
 
@@ -136,7 +137,9 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
 
 
 if __name__ == "__main__":
-
+    import umap.umap_ as umap
+    from clustpy.data import load_iris, load_mnist, load_fmnist
+    from sklearn import datasets
     # X = np.array([[1,2,3,4],[5,6,7,8]])
     # y = np.array([0,3])
 
@@ -155,21 +158,20 @@ if __name__ == "__main__":
     np.random.shuffle(combined_data)
 
     # Unpack the shuffled data
-    # X_mnist, Y_mnist = zip(*combined_data)
+    X_mnist, Y_mnist = zip(*combined_data)
 
-    # # Convert back to numpy arrays
-    # X_mnist = np.array(X_mnist)
-    # Y_mnist = np.array(Y_mnist)
+    # Convert back to numpy arrays
+    X_mnist = np.array(X_mnist)
+    Y_mnist = np.array(Y_mnist)
 
-    # # Select only the first 10000 samples and labels
-    # X_mnist = X_mnist[:10000]
-    # y_mnist = Y_mnist[:10000]
+    # Select only the first 10000 samples and labels
+    X_mnist = X_mnist[:10000]
+    y_mnist = Y_mnist[:10000]
 
-    # # print(X_mnist.shape)
-    # res = dcsi(X_mnist, y_mnist)
+    # print(X_mnist.shape)
+    res = dcsi(X_mnist, y_mnist)
 
-    # print(res)
-
+    print(res) # 0.445
 
     X_fmnist, Y_fmnist = load_fmnist()
 
@@ -193,4 +195,40 @@ if __name__ == "__main__":
     # print(X_mnist.shape)
     res = dcsi(X_fmnist, y_fmnist)
 
-    print(res)
+    print(res) # 0.406
+
+    # print(np.unique(y_mnist))
+    # print(np.unique(y_fmnist))
+
+    # create UMAP embedding for Mnist
+    fit = umap.UMAP(
+        n_neighbors=10, 
+        min_dist=0.1,
+        n_components=2,
+        metric="euclidean"
+    )
+
+    umap_mnist = fit.fit_transform(X_mnist)
+
+    res = dcsi(umap_mnist, y_mnist)
+
+    print(res) # 0.825
+
+    # create UMAP embedding for FMnist-10
+    fit = umap.UMAP(
+        n_neighbors=10, #maybe 15
+        min_dist=0.1,
+        n_components=2,
+        metric="euclidean"
+    )
+    umap_fmnist = fit.fit_transform(X_fmnist)
+
+    res = dcsi(umap_fmnist, y_fmnist)
+
+    print(res) # 0.401
+
+
+    moons = datasets.make_moons(noise = 0.05, n_samples = 150)
+    X,y = moons[0], moons[1]
+
+    dcsi(X,y)

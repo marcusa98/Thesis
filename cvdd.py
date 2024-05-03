@@ -5,7 +5,7 @@ from sklearn.neighbors import NearestNeighbors
 from collections import defaultdict
 from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
-import unittest
+from sklearn.cluster import KMeans
 
 # def conD(x,y):
 
@@ -207,8 +207,8 @@ def cvdd(X, y, k = 5, distance = euclidean):
         coms.append(com_Ci)
 
 
-    print(seps)
-    print(coms)
+    #print(seps)
+    #print(coms)
 
     # compute CVDD (Def. 13)
     res = sum(seps) / sum(coms)
@@ -221,14 +221,17 @@ X_iris, y_iris = load_iris()
 res = cvdd(X_iris, y_iris)
 print(res)
 
+clustering_kmeans = KMeans(n_clusters=3, n_init = "auto").fit(X_iris)
+k_labels = clustering_kmeans.labels_
 
-
-
-
+res1 = cvdd(X_iris, k_labels)
+print(res1)
 
 
 if __name__ == "__main__":
-
+    from numpy.random import MT19937
+    from numpy.random import RandomState, SeedSequence
+    rs = RandomState(MT19937(SeedSequence(123456789)))
     # n = 10
     
     # G = {
@@ -269,7 +272,21 @@ if __name__ == "__main__":
 
     X_iris, y_iris = load_iris()
     
+    print("true labels")
     cvdd(X_iris, y_iris)
+    print("random labels")
+    y_test1 = np.random.randint(3, size = len(y_iris))
+    y_test2 = np.random.randint(3, size = len(y_iris))
+    y_test3 = np.random.randint(3, size = len(y_iris))
+    y_test4 = np.random.randint(3, size = len(y_iris))
+    y_test5 = np.random.randint(3, size = len(y_iris))
+
+    cvdd(X_iris, y_test1)
+    cvdd(X_iris, y_test2)
+    cvdd(X_iris, y_test3)
+    cvdd(X_iris, y_test4)
+    cvdd(X_iris, y_test5)
+
 
     # res = cvdd(X_iris, y_iris)
 
