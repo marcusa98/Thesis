@@ -70,7 +70,16 @@ def MinMaxDists(Edges):
 
 
 def cvdd(X, y, k = 5, distance = euclidean):
+    """
+    Compute CVDD of a clustering solution.
 
+    Parameters:
+        X (array-like): Dataset.
+        y (array-like): Cluster labels for each data point.
+        k (integer): number of nearest neighbours to defined a corepoint
+    Returns:
+        float: CVDD of the clustering solution.
+    """  
     n = len(y)
     stats = {}
     n_clusters = len(np.unique(y))
