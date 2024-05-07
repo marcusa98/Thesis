@@ -21,12 +21,15 @@ def separation(x,y):
 
 def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
     """
-    X... np.array n x p
-    y... data partition
-    eps... defines the epsilon neighborhood
-    minPts... number of points contained inside the epsilon neighborhood of a point, for the point to be considered a corepoint
+    Computes DCSI of a clustering solution.
 
-    returns: value between 0 and 1
+    Parameters:
+        X (array-like): Dataset.
+        y (array-like): Cluster labels for each data point.
+        eps (list): defines epsilon neighborhood of each cluster
+        minPts (integer): number of points contained inside the epsilon neighborhood of a point, for the point to be considered a corepoint
+    Returns:
+        float: DCSI (value between 0 and 1) of the clustering solution.
     """
     eps = {}
     corepoints_all = {}
@@ -107,8 +110,8 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
                 seps[i, j] = separation(corepoints_all[keys_1[i]], corepoints_all[keys_1[j]])
                 connects[i, j] = max(connectedness[keys_2[i]], connectedness[keys_2[j]])
 
-    print(seps)        
-    print(connects)
+    # print(seps)        
+    # print(connects)
 
 
     if len(np.unique(y)) == 2:
@@ -168,10 +171,13 @@ if __name__ == "__main__":
     X_mnist = X_mnist[:10000]
     y_mnist = Y_mnist[:10000]
 
+    # standardize as matrix
+    X_mnist_norm = (X_mnist - np.mean(X_mnist)) / np.std(X_mnist)
+
     # print(X_mnist.shape)
     res = dcsi(X_mnist, y_mnist)
 
-    print(res) # 0.445
+    print(res) # 0.451
 
     X_fmnist, Y_fmnist = load_fmnist()
 
@@ -192,10 +198,13 @@ if __name__ == "__main__":
     X_fmnist = X_fmnist[:10000]
     y_fmnist = Y_fmnist[:10000]
 
+    # standardize as matrix
+    X_fmnist_norm = (X_fmnist - np.mean(X_fmnist)) / np.std(X_fmnist)
+
     # print(X_mnist.shape)
     res = dcsi(X_fmnist, y_fmnist)
 
-    print(res) # 0.406
+    print(res) # 0.403
 
     # print(np.unique(y_mnist))
     # print(np.unique(y_fmnist))
@@ -204,31 +213,34 @@ if __name__ == "__main__":
     fit = umap.UMAP(
         n_neighbors=10, 
         min_dist=0.1,
-        n_components=2,
+        n_components=3,
         metric="euclidean"
     )
 
-    umap_mnist = fit.fit_transform(X_mnist)
+    umap_mnist = fit.fit_transform(X_mnist_norm)
 
     res = dcsi(umap_mnist, y_mnist)
 
-    print(res) # 0.825
+    print(res) # 0.776
 
     # create UMAP embedding for FMnist-10
     fit = umap.UMAP(
         n_neighbors=10, #maybe 15
         min_dist=0.1,
-        n_components=2,
+        n_components=3,
         metric="euclidean"
     )
-    umap_fmnist = fit.fit_transform(X_fmnist)
+
+    umap_fmnist = fit.fit_transform(X_fmnist_norm)
 
     res = dcsi(umap_fmnist, y_fmnist)
 
-    print(res) # 0.401
+    print(res) # 0.541
+
+
 
 
     moons = datasets.make_moons(noise = 0.05, n_samples = 150)
     X,y = moons[0], moons[1]
 
-    dcsi(X,y)
+    dcsi(X,y) #why is minPts = 60 possible?
