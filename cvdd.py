@@ -1,15 +1,10 @@
 import numpy as np
 from scipy.spatial.distance import euclidean
-from scipy.spatial import distance_matrix
+from scipy.spatial.distance import pdist, squareform
 from sklearn.neighbors import NearestNeighbors
 from collections import defaultdict
 from clustpy.data import load_iris, load_mnist, load_fmnist
 from DBCV_Lena import MST_Edges
-from sklearn.cluster import KMeans
-
-# def conD(x,y):
-
-#     return res
 
 
 def build_graph(Edges): 
@@ -83,7 +78,6 @@ def cvdd(X, y, k = 5, distance = euclidean):
     n = len(y)
     stats = {}
     n_clusters = len(np.unique(y))
-    seps_pairwise = np.zeros((n_clusters, n_clusters))
 
     # get k Nearest neighbors
     knn = NearestNeighbors(n_neighbors =  k + 1).fit(X)
@@ -93,8 +87,11 @@ def cvdd(X, y, k = 5, distance = euclidean):
     # compute density estimation (Def. 2)
     stats["Den"] = np.mean(distances[:, 1:], axis=1)
     
+    #print(stats["Den"])
+
     #print(len(stats["Den"])) # works
 
+    #print(np.max(stats["Den"]))
     # compute outlier factor (Def. 3)
     stats["fDen"] = stats["Den"] / np.max(stats["Den"])
 
@@ -103,12 +100,13 @@ def cvdd(X, y, k = 5, distance = euclidean):
     fRel = np.zeros((n, n))
 
     # set drD to euclidean distances in the beginning
-    drD = distance_matrix(X, X)
-
+    #drD = distance_matrix(X, X)
+    drD = squareform(pdist(X))
     # initialize Matrix for sum of Den(x_i) and Den(x_j)
     nD = np.zeros((n, n))
 
     for i in range(n):
+        #print(stats["Den"][i])
         for j in range(n):
             if i < j:
 
@@ -116,6 +114,7 @@ def cvdd(X, y, k = 5, distance = euclidean):
                 nD[i, j] = stats["Den"][i] + stats["Den"][j]
                 nD[j, i] = stats["Den"][j] + stats["Den"][i]
 
+                #print(stats["Den"][j])
                 # Relative Density (Def. 5)
                 Rel_ij = stats["Den"][i] / stats["Den"][j]
                 Rel_ji = stats["Den"][j] / stats["Den"][i]
@@ -169,6 +168,10 @@ def cvdd(X, y, k = 5, distance = euclidean):
     seps = []
 
     for i in range(n_clusters):
+            # print(i)
+            # print(np.unique(y))
+            # print(np.where(y == i)[0])
+            # print(np.where(y != i)[0])
             seps.append(np.min(DD[np.ix_(np.where(y == i)[0], np.where(y != i)[0])]))
 
     #print(seps)
@@ -187,9 +190,9 @@ def cvdd(X, y, k = 5, distance = euclidean):
         }
 
         # compute all pairwise distances inside a cluster
-        inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        #inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        inter_dists = squareform(pdist(X[np.where(y == cluster)[0],:]))
 
-        #print(inter_dists)
 
         # compute MST using Lena's implementation of Prim algorithm
         Edges_pD, _ = MST_Edges(G, 0, inter_dists)
@@ -226,21 +229,38 @@ def cvdd(X, y, k = 5, distance = euclidean):
     return res
 
 
-X_iris, y_iris = load_iris()
-res = cvdd(X_iris, y_iris)
-print(res)
-
-clustering_kmeans = KMeans(n_clusters=3, n_init = "auto").fit(X_iris)
-k_labels = clustering_kmeans.labels_
-
-res1 = cvdd(X_iris, k_labels)
-print(res1)
-
-
 if __name__ == "__main__":
     from numpy.random import MT19937
-    from numpy.random import RandomState, SeedSequence
-    rs = RandomState(MT19937(SeedSequence(123456789)))
+    #from numpy.random import RandomState, SeedSequence
+    #rs = RandomState(MT19937(SeedSequence(123456789)))
+    from ucimlrepo import fetch_ucirepo 
+    from sklearn.preprocessing import LabelEncoder
+
+    label_encoder = LabelEncoder()
+    # fetch dataset
+    ionosphere = fetch_ucirepo(id=52)
+
+    # data (as pandas dataframes)
+    X_ion = ionosphere.data.features
+    y_ion = ionosphere.data.targets
+
+    # metadata
+    #print(ionosphere.metadata)
+
+    # variable information
+    #print(ionosphere.variables)
+
+    y_ion = label_encoder.fit_transform(y_ion['Class'])
+
+
+    print(cvdd(np.array(X_ion), np.array(y_ion)))
+    #print(y_ion)
+    
+    # print(np.__version__)
+    # import scipy
+    # print(scipy.__version__)
+    
+    
     # n = 10
     
     # G = {
@@ -346,3 +366,28 @@ if __name__ == "__main__":
     # res = cvdd(X_fmnist, y_fmnist)
 
     # print(res)
+
+    # X_iris, y_iris = load_iris()
+    # res = cvdd(X_iris, y_iris)
+    # print(res)
+
+    # clustering_kmeans = KMeans(n_clusters=3, n_init = "auto").fit(X_iris)
+    # k_labels = clustering_kmeans.labels_
+
+    # res1 = cvdd(X_iris, k_labels)
+    # print(res1)
+
+
+    # wine = fetch_ucirepo(id=109) 
+  
+    # # data (as pandas dataframes) 
+    # X_wine = wine.data.features 
+    # y_wine = np.array(wine.data.targets['class'])
+    # from sklearn.preprocessing import LabelEncoder
+
+    # label_encoder = LabelEncoder()
+
+    # y_wine = label_encoder.fit_transform(y_wine)
+
+
+    # cvdd(np.array(X_wine), np.array(y_wine))
