@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.distance import euclidean
 from scipy.spatial import distance_matrix
+from scipy.spatial.distance import pdist, squareform
 from DBCV_Lena import MST_Edges
 
 
@@ -9,11 +10,19 @@ def separation(x,y):
     x...corepoints of cluster i
     y...corepoints of cluster j
     """
-    # print(x.shape)
-    # print(y.shape)
-    dists_ij = distance_matrix(x, y)
 
-    #print(dists_ij)
+    stacked_matrix = np.vstack((x, y))
+    full_distance_matrix = squareform(pdist(stacked_matrix))
+
+    # Extract the relevant submatrix
+    # matrix_i has shape (m, n) and matrix_j has shape (p, n)
+    m = x.shape[0]
+    p = y.shape[0]
+
+    # The distances between points in matrix_i and matrix_j are in the submatrix
+    dists_ij = full_distance_matrix[:m, m:m+p]
+    #dists_ij = distance_matrix(x, y)
+
     sep = np.min(dists_ij)
 
     return sep
@@ -45,7 +54,8 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         corepoints_cluster = []
 
         # compute all pairwise distances inside a cluster
-        inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        #inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        inter_dists = squareform(pdist(X[np.where(y == cluster)[0],:]))
 
 
         # compute eps for cluster according to Definition 4.6
@@ -85,6 +95,9 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         #print(inter_dists.shape)
         #print(inter_dists_corepoints)
         #print(len(corepoints_cluster))
+
+        if len(corepoints_cluster) < 2:
+            raise ValueError("At least 2 core points are required. Try to increase minPts")
 
         # create empty graph on corepoints
         G = {
@@ -140,7 +153,7 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
 
 
 if __name__ == "__main__":
-    import umap.umap_ as umap
+    #import umap.umap_ as umap
     from clustpy.data import load_iris, load_mnist, load_fmnist
     from sklearn import datasets
     # X = np.array([[1,2,3,4],[5,6,7,8]])
@@ -244,3 +257,24 @@ if __name__ == "__main__":
     X,y = moons[0], moons[1]
 
     dcsi(X,y) #why is minPts = 60 possible?
+
+    #########
+
+    X = np.random.rand(7,10)
+    y = np.random.rand(3,10)
+    print(distance_matrix(X,y))
+
+
+    stacked_matrix = np.vstack((X, y))
+
+    full_distance_matrix = squareform(pdist(stacked_matrix))
+
+    # Extract the relevant submatrix
+    # matrix_i has shape (m, n) and matrix_j has shape (p, n)
+    m = X.shape[0]
+    p = y.shape[0]
+
+    # The distances between points in matrix_i and matrix_j are in the submatrix
+    distances_between_sets = full_distance_matrix[:m, m:m+p]
+
+    print(distances_between_sets)
