@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.spatial import distance_matrix
+from scipy.spatial.distance import pdist, squareform
 
 def dunn_index(X, labels):
     """
@@ -13,7 +13,7 @@ def dunn_index(X, labels):
         float: Dunn Index of the clustering solution.
     """
     # Calculate pairwise distances between points in the dataset
-    distances = distance_matrix(X, X)
+    distances = squareform(pdist(X))
 
     # Calculate separability (minimum distance between any two points between any two clusters)
     min_inter_cluster_distance = np.min(distances[labels != labels[:, None]])
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     from sklearn import datasets
     from sklearn.cluster import KMeans
     import matplotlib.pyplot as plt
-    moons = datasets.make_moons(noise = 0.05, n_samples = 150)
+    moons = datasets.make_moons(noise = 0.05, n_samples = 1500)
     X,y = moons[0], moons[1]
 
     clustering_kmeans = KMeans(n_clusters=2, n_init = "auto").fit(X)
