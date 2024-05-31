@@ -97,7 +97,7 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         #print(len(corepoints_cluster))
 
         if len(corepoints_cluster) < 2:
-            raise ValueError("At least 2 core points are required. Try to increase minPts")
+            raise ValueError("At least 2 core points are required. Try to reduce minPts")
 
         # create empty graph on corepoints
         G = {
