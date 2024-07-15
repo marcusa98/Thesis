@@ -97,36 +97,47 @@ def cvdd(X, y, k = 5, distance = euclidean):
 
     #print(stats["fDen"]) # works
 
-    fRel = np.zeros((n, n))
-
     # set drD to euclidean distances in the beginning
-    #drD = distance_matrix(X, X)
     drD = squareform(pdist(X))
-    # initialize Matrix for sum of Den(x_i) and Den(x_j)
-    nD = np.zeros((n, n))
 
-    for i in range(n):
-        #print(stats["Den"][i])
-        for j in range(n):
-            if i < j:
+    # use broadcasting to speed up computation
+    array1 = stats["Den"].reshape(-1,1)
+    array2 = stats["Den"].reshape(1,-1)
 
-                # compute nD(x_i, x_j)
-                nD[i, j] = stats["Den"][i] + stats["Den"][j]
-                nD[j, i] = stats["Den"][j] + stats["Den"][i]
+    nD = array1 + array2
+    np.fill_diagonal(nD, 0.0)
 
-                #print(stats["Den"][j])
-                # Relative Density (Def. 5)
-                Rel_ij = stats["Den"][i] / stats["Den"][j]
-                Rel_ji = stats["Den"][j] / stats["Den"][i]
-                
-                # mutual Density factor (Def. 6)
-                fRel[i, j] = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
-                fRel[j, i] = 1 - np.exp(-(Rel_ji + Rel_ij - 2))
+    # Relative Density (Def. 5) 
+    Rel_ij = array1 / array2
+    np.fill_diagonal(Rel_ij, 0.0)
+    Rel_ji = np.transpose(Rel_ij)
 
-    #print(np.max(fRel))
-    #print(np.min(fRel))
-
+    # mutual Density factor (Def. 6)
+    fRel = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
     relD = fRel * nD
+
+    # fRel = np.zeros((n, n))
+    # # initialize Matrix for sum of Den(x_i) and Den(x_j)
+    # nD = np.zeros((n, n))
+    # for i in trange(n):
+    #     #print(stats["Den"][i])
+    #     for j in range(n):
+    #         if i < j:
+
+    #             # compute nD(x_i, x_j)
+    #             nD[i, j] = stats["Den"][i] + stats["Den"][j]
+    #             nD[j, i] = stats["Den"][j] + stats["Den"][i]
+            
+    #             # Relative Density (Def. 5)
+    #             Rel_ij = stats["Den"][i] / stats["Den"][j]
+    #             Rel_ji = stats["Den"][j] / stats["Den"][i]
+            
+    #             # mutual Density factor (Def. 6)
+    #             fRel[i, j] = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
+    #             fRel[j, i] = 1 - np.exp(-(Rel_ji + Rel_ij - 2))
+
+    # relD = fRel * nD
+
 
     drD += relD
     
@@ -230,11 +241,13 @@ def cvdd(X, y, k = 5, distance = euclidean):
 
 
 if __name__ == "__main__":
-    from numpy.random import MT19937
     #from numpy.random import RandomState, SeedSequence
     #rs = RandomState(MT19937(SeedSequence(123456789)))
     from ucimlrepo import fetch_ucirepo 
     from sklearn.preprocessing import LabelEncoder
+    from time import time
+    from tqdm import trange
+    
 
     label_encoder = LabelEncoder()
     # fetch dataset
@@ -244,21 +257,113 @@ if __name__ == "__main__":
     X_ion = ionosphere.data.features
     y_ion = ionosphere.data.targets
 
-    # metadata
-    #print(ionosphere.metadata)
-
-    # variable information
-    #print(ionosphere.variables)
-
     y_ion = label_encoder.fit_transform(y_ion['Class'])
 
-
+    #time wiht old version -> 0.67 sec
+    #time with new version -> 0.45 sec
+    start = time()
     print(cvdd(np.array(X_ion), np.array(y_ion)))
-    #print(y_ion)
+    stop = time()
+    print(stop-start)
+
+
+    X, y = load_mnist()
+
+    X = np.array(X)[:10000]
+    y = np.array(y)[:10000]
+
+    # Mnist[:10000]: time with old version -> 184 sec until drD and 521 sec total
+    start = time()
+    print(cvdd(X, y))
+    stop = time()
+    print(stop-start)
+
+    # Mnist[:10000]: time with new version -> 334 sec total
+    start = time()
+    print(cvdd(X, y))
+    stop = time()
+    print(stop-start)
+
+    # k = 5
+
+    # knn = NearestNeighbors(n_neighbors =  k + 1).fit(X_ion)
+    # distances, _ = knn.kneighbors(X_ion)
+    # stats = {}
+
+    # # compute density estimation (Def. 2)
+    # stats["Den"] = np.mean(distances[:, 1:], axis=1)
+
+    # n = X_ion.shape[0]
+
+    # fRel = np.zeros((n, n))
+
+    # # set drD to euclidean distances in the beginning
+    # #drD = distance_matrix(X, X)
+    # drD = squareform(pdist(X))
+
+    # start = time()
+
+    # # initialize Matrix for sum of Den(x_i) and Den(x_j)
+    # nD = np.zeros((n, n))
+    # for i in trange(n):
+    #     #print(stats["Den"][i])
+    #     for j in range(n):
+    #         if i < j:
+
+    #             # compute nD(x_i, x_j)
+    #             nD[i, j] = stats["Den"][i] + stats["Den"][j]
+    #             nD[j, i] = stats["Den"][j] + stats["Den"][i]
+                
+    #             # array1 = stats["Den"].reshape(-1,1)
+    #             # array2 = stats["Den"].reshape(1,-1)
+    #             # nD = array1 + array2
+    #             # np.fill_diagonal(nD, 0.0)
+
+    #             # Relative Density (Def. 5)
+    #             Rel_ij = stats["Den"][i] / stats["Den"][j]
+    #             Rel_ji = stats["Den"][j] / stats["Den"][i]
+                
+    #             # Rel_ij = array1 / array2
+    #             # np.fill_diagonal(Rel_ij, 0.0)
+    #             # Rel_ji = np.transpose(Rel_ij)
+
+    #             # mutual Density factor (Def. 6)
+    #             fRel[i, j] = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
+    #             fRel[j, i] = 1 - np.exp(-(Rel_ji + Rel_ij - 2))
+
+    #             #fRel = 1 - np.exp(-(Rel_ij + Rel_ji) - 2)
+
+    # relD = fRel * nD
+    # stop = time()
+
+
+    # start1 = time()
+
+    # # compute nD(x_i, x_j)
     
-    # print(np.__version__)
-    # import scipy
-    # print(scipy.__version__)
+    # array1 = stats["Den"].reshape(-1,1)
+    # array2 = stats["Den"].reshape(1,-1)
+    # nD_1 = array1 + array2
+    # np.fill_diagonal(nD_1, 0.0)
+
+    # # Relative Density (Def. 5)
+    
+    # Rel_ij_1 = array1 / array2
+    # np.fill_diagonal(Rel_ij_1, 0.0)
+    # Rel_ji_1 = np.transpose(Rel_ij_1)
+
+    # # mutual Density factor (Def. 6)
+
+    # fRel_1 = 1 - np.exp(-(Rel_ij_1 + Rel_ji_1 - 2))
+
+    # relD_1 = fRel_1 * nD
+    # stop1 = time()
+
+
+    # print((relD == relD_1).all())
+
+    # print("non efficient ", stop-start)
+    # print("efficient ", stop1-start1)
     
     
     # n = 10
@@ -391,3 +496,35 @@ if __name__ == "__main__":
 
 
     # cvdd(np.array(X_wine), np.array(y_wine))
+    # ionosphere = fetch_ucirepo(id=52)
+
+    # # data (as pandas dataframes)
+    # X_ion = ionosphere.data.features
+    # y_ion = ionosphere.data.targets
+
+    # # metadata
+    # #print(ionosphere.metadata)
+
+    # # variable information
+    # #print(ionosphere.variables)
+
+    # #print(y_ion)
+
+    # y_ion = label_encoder.fit_transform(y_ion['Class'])
+    # print(cvdd(np.array(X_ion), np.array(y_ion))) 
+    import scipy
+    import sklearn
+    import clustpy
+    np_version = np.__version__
+    scipy_version = scipy.__version__
+    sklearn_version = sklearn.__version__
+    clustpy_version = clustpy.__version__
+
+    versions = {
+        "numpy": np_version,
+        "scipy": scipy_version,
+        "scikit-learn": sklearn_version,
+        "clustpy": clustpy_version
+    }
+
+    print(versions)
