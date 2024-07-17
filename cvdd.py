@@ -14,24 +14,17 @@ def build_graph(Edges):
         u, v, w = edge
         graph[u].append((v, w))
         graph[v].append((u, w))
-    #print(graph)
     return graph
 
-def dfs(node, graph, visited, max_weights_matrix, max_weights, current_max):
+def dfs(original_node, current_node, graph, visited, minmax_matrix, current_max):
     # depth first search algorithm to compute max weights for each possible path
-    visited[node] = True
-    # current_max was taken over from previous path, but should reset to 0 for every new immediate neighbor 
-    original_max = current_max # seemingly fixes problem, but don't understand why
-    for neighbor, weight in graph[node]:
+    visited[current_node] = True
+    original_max = current_max # reset current_max for every new immediate neighbor
+    for neighbor, weight in graph[current_node]:
         if not visited[neighbor]:
             current_max = max(original_max, weight)
-            max_weights[neighbor] = max(max_weights[neighbor], current_max)
-
-            #print((node, neighbor))
-            #max_weights_matrix[int(node), int(neighbor)] = max(max_weights_matrix[int(node), int(neighbor)], current_max)
-
-            dfs(neighbor, graph, visited, max_weights_matrix, max_weights, current_max)
-
+            minmax_matrix[int(original_node), int(neighbor)] = current_max
+            dfs(original_node, neighbor, graph, visited, minmax_matrix, current_max)
 
 def MinMaxDists(Edges):
     """
@@ -39,29 +32,17 @@ def MinMaxDists(Edges):
 
     returns dictionary with MinMax Dists for all paths
     """
-    graph = build_graph(Edges)
+    graph = build_graph1(Edges)
     nodes = np.unique(Edges[:, :2])
 
-    #print(nodes)
     # Store all MinMax distances
-    max_weights = {}
-    max_weights_matrix = np.zeros((len(nodes), len(nodes)))
+    minmax_matrix = np.zeros((len(nodes), len(nodes)))
     # Perform DFS from each node to find maximum edge weights to other nodes
     for node in nodes:
-        #print(str(node))
-        #print(max_weights_matrix)
-        # Initialize arrays to store maximum edge weights and visited nodes
-        max_weights[str(node)] = defaultdict(int)
         visited = defaultdict(bool)
-        dfs(node, graph, visited, max_weights_matrix, max_weights[str(node)], 0)
-        
-    #print(max_weights)
-    #print(max_weights_matrix)
+        dfs(node, node, graph, visited, minmax_matrix, 0)
     
-    # Compute the average of maximum edge weights
-    #sum_max_weights = sum(sum(sub_dict.values()) for sub_dict in max_weights.values()) / 2 # divide by 2 because every path exists twice
-
-    return max_weights
+    return minmax_matrix
 
 
 def cvdd(X, y, k = 5, distance = euclidean):
@@ -82,20 +63,12 @@ def cvdd(X, y, k = 5, distance = euclidean):
     # get k Nearest neighbors
     knn = NearestNeighbors(n_neighbors =  k + 1).fit(X)
     distances, _ = knn.kneighbors(X)
-    #print(distances)
 
     # compute density estimation (Def. 2)
     stats["Den"] = np.mean(distances[:, 1:], axis=1)
     
-    #print(stats["Den"])
-
-    #print(len(stats["Den"])) # works
-
-    #print(np.max(stats["Den"]))
     # compute outlier factor (Def. 3)
     stats["fDen"] = stats["Den"] / np.max(stats["Den"])
-
-    #print(stats["fDen"]) # works
 
     # set drD to euclidean distances in the beginning
     drD = squareform(pdist(X))
@@ -141,7 +114,6 @@ def cvdd(X, y, k = 5, distance = euclidean):
 
     drD += relD
     
-    #print(np.all(drD >= distance_matrix(X, X)))
 
     G = {
         "no_vertices": n,
@@ -151,41 +123,23 @@ def cvdd(X, y, k = 5, distance = euclidean):
     }
 
 
-    #print(drD)
-
     # compute MST using Lena's implementation of Prim algorithm
     Edges_drD, _ = MST_Edges(G, 0, drD)   
 
-    #print(Edges_drD)
-
     conD = MinMaxDists(Edges_drD)
 
-    #print(conD)
+    # use broadcasting and matrix matrix operations instead of loops
+    array1 = stats["fDen"].reshape(-1, 1)
+    array2 = stats["fDen"].reshape(1, -1)
 
-    # filling up DD Matrix (Def. 10)
-    DD = np.zeros((n, n))
+    DD = ((array1 * array2) ** 0.5) * conD
 
-    for i in range(n):
-        for j in range(n):
-            if i < j:
-                #pass
-                #print(conD[str(float(i))][float(j)] == conD[str(float(j))][float(i)])
-                DD[i,j] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(i))][float(j)]
-                DD[j,i] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(j))][float(i)]
-
-    #print(DD)
 
     # Compute separations between one cluster and all others (Def. 11)
     seps = []
 
     for i in range(n_clusters):
-            # print(i)
-            # print(np.unique(y))
-            # print(np.where(y == i)[0])
-            # print(np.where(y != i)[0])
             seps.append(np.min(DD[np.ix_(np.where(y == i)[0], np.where(y != i)[0])]))
-
-    #print(seps)
 
     coms = []
 
@@ -201,26 +155,15 @@ def cvdd(X, y, k = 5, distance = euclidean):
         }
 
         # compute all pairwise distances inside a cluster
-        #inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
         inter_dists = squareform(pdist(X[np.where(y == cluster)[0],:]))
-
 
         # compute MST using Lena's implementation of Prim algorithm
         Edges_pD, _ = MST_Edges(G, 0, inter_dists)
 
-
-        #print(Edges_pD)
-
         pD = MinMaxDists(Edges_pD)
 
-        # flattening pD Dictionary
-        flattened_data = [value for sub_dict in pD.values() for value in sub_dict.values()]
-
-        Mean_Ci = np.mean(flattened_data)
-        Std_Ci = np.std(flattened_data)
-
-        # print(Mean_Ci)
-        # print(Std_Ci)
+        Mean_Ci = np.mean(pD)
+        Std_Ci = np.std(pD)
 
         # compute compactness (Def. 12)
         #com_Ci = (1/n_paths) * Std_Ci * Mean_Ci
@@ -230,19 +173,16 @@ def cvdd(X, y, k = 5, distance = euclidean):
         coms.append(com_Ci)
 
 
-    #print(seps)
-    #print(coms)
 
     # compute CVDD (Def. 13)
     res = sum(seps) / sum(coms)
 
-    #print(res)
     return res
 
 
+
+
 if __name__ == "__main__":
-    #from numpy.random import RandomState, SeedSequence
-    #rs = RandomState(MT19937(SeedSequence(123456789)))
     from ucimlrepo import fetch_ucirepo 
     from sklearn.preprocessing import LabelEncoder
     from time import time
@@ -266,6 +206,12 @@ if __name__ == "__main__":
     stop = time()
     print(stop-start)
 
+    X_iris, y_iris = load_iris()
+    start = time()
+    print(cvdd(np.array(X_iris), np.array(y_iris)))
+    stop = time()
+    print(stop-start)
+
 
     X, y = load_mnist()
 
@@ -273,130 +219,166 @@ if __name__ == "__main__":
     y = np.array(y)[:10000]
 
     # Mnist[:10000]: time with old version -> 184 sec until drD and 521 sec total
+    # Mnist[:10000]: time with relD vectorized version -> 334 sec total
+    # Mnist[:10000]: time with relD and conD vectorized version -> 289 sec total
     start = time()
     print(cvdd(X, y))
     stop = time()
     print(stop-start)
 
-    # Mnist[:10000]: time with new version -> 334 sec total
-    start = time()
-    print(cvdd(X, y))
-    stop = time()
-    print(stop-start)
 
-    # k = 5
+    import numpy as np
+    from collections import defaultdict
 
-    # knn = NearestNeighbors(n_neighbors =  k + 1).fit(X_ion)
-    # distances, _ = knn.kneighbors(X_ion)
-    # stats = {}
+    def build_graph1(Edges): 
+        # function to represent graph as dictionary of lists
+        graph = defaultdict(list)
+        for edge in Edges:
+            u, v, w = edge
+            graph[u].append((v, w))
+            graph[v].append((u, w))
+        return graph
 
-    # # compute density estimation (Def. 2)
-    # stats["Den"] = np.mean(distances[:, 1:], axis=1)
+    def dfs1(original_node, current_node, graph, visited, minmax_matrix, current_max):
+        # depth first search algorithm to compute max weights for each possible path
+        visited[current_node] = True
+        original_max = current_max # reset current_max for every new immediate neighbor
+        for neighbor, weight in graph[current_node]:
+            if not visited[neighbor]:
+                current_max = max(original_max, weight)
+                minmax_matrix[int(original_node), int(neighbor)] = current_max
+                dfs1(original_node, neighbor, graph, visited, minmax_matrix, current_max)
 
-    # n = X_ion.shape[0]
+    def MinMaxDists1(Edges):
+        """
+        Edges...np.array of shape n-1 x 3 with columns outgoing node, incoming node, path weight
 
-    # fRel = np.zeros((n, n))
+        returns dictionary with MinMax Dists for all paths
+        """
+        graph = build_graph1(Edges)
+        nodes = np.unique(Edges[:, :2])
 
-    # # set drD to euclidean distances in the beginning
-    # #drD = distance_matrix(X, X)
-    # drD = squareform(pdist(X))
+        # Store all MinMax distances
+        minmax_matrix = np.zeros((len(nodes), len(nodes)))
+        # Perform DFS from each node to find maximum edge weights to other nodes
+        for node in nodes:
+            visited = defaultdict(bool)
+            dfs1(node, node, graph, visited, minmax_matrix, 0)
+        
+        return minmax_matrix
+
+    # # Example usage
+    # Edges = np.array([
+    #     [0, 1, 4],
+    #     [0, 2, 3],
+    #     [1, 3, 2],
+    #     [1, 4, 6],
+    #     [2, 5, 1],
+    #     [2, 6, 5],
+    #     [3, 7, 7],
+    #     [4, 8, 8],
+    #     [5, 9, 4],
+    #     [6, 10, 3],
+    #     [7, 11, 2],
+    #     [8, 12, 6],
+    #     [9, 13, 5],
+    #     [10, 14, 1]
+    # ])
 
     # start = time()
-
-    # # initialize Matrix for sum of Den(x_i) and Den(x_j)
-    # nD = np.zeros((n, n))
-    # for i in trange(n):
-    #     #print(stats["Den"][i])
-    #     for j in range(n):
-    #         if i < j:
-
-    #             # compute nD(x_i, x_j)
-    #             nD[i, j] = stats["Den"][i] + stats["Den"][j]
-    #             nD[j, i] = stats["Den"][j] + stats["Den"][i]
-                
-    #             # array1 = stats["Den"].reshape(-1,1)
-    #             # array2 = stats["Den"].reshape(1,-1)
-    #             # nD = array1 + array2
-    #             # np.fill_diagonal(nD, 0.0)
-
-    #             # Relative Density (Def. 5)
-    #             Rel_ij = stats["Den"][i] / stats["Den"][j]
-    #             Rel_ji = stats["Den"][j] / stats["Den"][i]
-                
-    #             # Rel_ij = array1 / array2
-    #             # np.fill_diagonal(Rel_ij, 0.0)
-    #             # Rel_ji = np.transpose(Rel_ij)
-
-    #             # mutual Density factor (Def. 6)
-    #             fRel[i, j] = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
-    #             fRel[j, i] = 1 - np.exp(-(Rel_ji + Rel_ij - 2))
-
-    #             #fRel = 1 - np.exp(-(Rel_ij + Rel_ji) - 2)
-
-    # relD = fRel * nD
+    # min_max_dists = MinMaxDists1(Edges)
     # stop = time()
+    # print(min_max_dists)
+    # print("Matrix weights", stop-start)
+
+    # start = time()
+    # min_max_dists_original = MinMaxDists(Edges)
+    # stop = time()
+    # print(min_max_dists_original)
+    # print("dictionary weights", stop-start)
 
 
-    # start1 = time()
+    #print(max(Edges[0, 2], 1))
 
-    # # compute nD(x_i, x_j)
+
+    k = 5
+
+    n = len(y_ion)
+    stats = {}
+    n_clusters = len(np.unique(y_ion))
+
+    # get k Nearest neighbors
+    knn = NearestNeighbors(n_neighbors =  k + 1).fit(X_ion)
+    distances, _ = knn.kneighbors(X_ion)
+
+    # compute density estimation (Def. 2)
+    stats["Den"] = np.mean(distances[:, 1:], axis=1)
     
-    # array1 = stats["Den"].reshape(-1,1)
-    # array2 = stats["Den"].reshape(1,-1)
-    # nD_1 = array1 + array2
-    # np.fill_diagonal(nD_1, 0.0)
+    # compute outlier factor (Def. 3)
+    stats["fDen"] = stats["Den"] / np.max(stats["Den"])
 
-    # # Relative Density (Def. 5)
-    
-    # Rel_ij_1 = array1 / array2
-    # np.fill_diagonal(Rel_ij_1, 0.0)
-    # Rel_ji_1 = np.transpose(Rel_ij_1)
+    # set drD to euclidean distances in the beginning
+    drD = squareform(pdist(X_ion))
 
-    # # mutual Density factor (Def. 6)
+    # use broadcasting to speed up computation
+    array1 = stats["Den"].reshape(-1,1)
+    array2 = stats["Den"].reshape(1,-1)
 
-    # fRel_1 = 1 - np.exp(-(Rel_ij_1 + Rel_ji_1 - 2))
+    nD = array1 + array2
+    np.fill_diagonal(nD, 0.0)
 
-    # relD_1 = fRel_1 * nD
-    # stop1 = time()
+    # Relative Density (Def. 5) 
+    Rel_ij = array1 / array2
+    np.fill_diagonal(Rel_ij, 0.0)
+    Rel_ji = np.transpose(Rel_ij)
 
+    # mutual Density factor (Def. 6)
+    fRel = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
+    relD = fRel * nD
 
-    # print((relD == relD_1).all())
+    drD += relD
 
-    # print("non efficient ", stop-start)
-    # print("efficient ", stop1-start1)
-    
-    
-    # n = 10
-    
-    # G = {
-    #     "no_vertices": n,
-    #     "MST_edges": np.zeros((n - 1, 3)),
-    #     "MST_degrees": np.zeros((n), dtype=int),
-    #     "MST_parent": np.zeros((n), dtype=int),
-    # }
-
-    # data = np.random.rand(n, 3)
-
-    # drD = distance_matrix(data, data)
-
-    # # compute MST using Lena's implementation of Prim algorithm
-    # Edges_drD, _ = MST_Edges(G, 0, drD)   
-
-    # print(Edges_drD)
-
-    # graph = build_graph(Edges_drD)
-
-    # print(graph)
-
-    # nodes = np.unique(Edges_drD[:, :2])
-
-    # print(nodes)
+    G = {
+        "no_vertices": n,
+        "MST_edges": np.zeros((n - 1, 3)),
+        "MST_degrees": np.zeros((n), dtype=int),
+        "MST_parent": np.zeros((n), dtype=int),
+    }
 
 
+    # compute MST using Lena's implementation of Prim algorithm
+    Edges_drD, _ = MST_Edges(G, 0, drD)   
 
-    Edges = np.array([[0, 1, 0.43], [1, 2, 0.6], [2, 3, 0.5]])
+    start = time()
+    conD = MinMaxDists(Edges_drD)
 
-    MinMaxDists(Edges)
+    DD = np.zeros((n, n))
+
+    for i in range(n):
+        for j in range(n):
+            if i < j:
+                #pass
+                #print(conD[str(float(i))][float(j)] == conD[str(float(j))][float(i)])
+                DD[i,j] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(i))][float(j)]
+                DD[j,i] = ((stats["fDen"][i] * stats["fDen"][j]) ** 0.5) * conD[str(float(j))][float(i)]
+
+    stop = time()
+
+    print("non matrix version: ", stop - start, "sec")
+
+
+    start = time()
+    conD = MinMaxDists1(Edges_drD)
+
+    array1 = stats["fDen"].reshape(-1, 1)
+    array2 = stats["fDen"].reshape(1, -1)
+
+    DD1 = ((array1 * array2) ** 0.5) * conD
+    stop = time()
+
+    print("matrix version: ", stop - start, "sec")
+
+    # print(np.allclose(DD, DD1))
 
     # X = np.array([[1,2,3,4],[5,6,7,8]])
     # y = np.array([0,3])
