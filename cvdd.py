@@ -7,6 +7,8 @@ from clustpy.data import load_iris, load_mnist, load_kmnist, load_fmnist, load_p
 from DBCV_Lena import MST_Edges
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import pairwise_distances
+import sys
+from tqdm import tqdm
 
 
 def build_graph(Edges): 
@@ -18,39 +20,53 @@ def build_graph(Edges):
         graph[v].append((u, w))
     return graph
 
-def dfs(original_node, current_node, graph, visited, minmax_matrix, current_max):
-    # depth first search algorithm to compute max weights for each possible path
-    visited[current_node] = True
-    for neighbor, weight in graph[current_node]:
-        # print("original node", original_node)
-        # print("neighbor", neighbor)
-        if not visited[neighbor]:
-            current_max = max(current_max, weight)
-            # if neighbor > original_node:
-            minmax_matrix[int(original_node), int(neighbor)] = current_max
-            # else:
-            #     pass
-            dfs(original_node, neighbor, graph, visited, minmax_matrix, current_max)
+# def dfs(original_node, current_node, graph, visited, minmax_matrix, current_max):
+#     # depth first search algorithm to compute max weights for each possible path
+#     visited[current_node] = True
+#     for neighbor, weight in graph[current_node]:
+#         # print("original node", original_node)
+#         # print("neighbor", neighbor)
+#         if not visited[neighbor]:
+#             current_max = max(current_max, weight)
+#             # if neighbor > original_node:
+#             minmax_matrix[int(original_node), int(neighbor)] = current_max
+#             # else:
+#             #     pass
+#             dfs(original_node, neighbor, graph, visited, minmax_matrix, current_max)
 
-def MinMaxDists(Edges):
+def dfs(original_node, graph, visited, minmax_matrix):
+    stack = [(original_node, original_node, 0)]  # Stack contains tuples of (original_node, current_node, current_max)
+    
+    while stack:
+        original_node, current_node, current_max = stack.pop()
+        
+        if not visited[current_node]:
+            visited[current_node] = True
+            for neighbor, weight in graph[current_node]:
+                if not visited[neighbor]:
+                    new_max = max(current_max, weight)
+                    minmax_matrix[int(original_node), int(neighbor)] = new_max
+                    stack.append((original_node, neighbor, new_max))
+
+
+
+def MinMaxDists(Edges, minmax_matrix):
     """
     Edges...np.array of shape n-1 x 3 with columns outgoing node, incoming node, path weight
 
     returns dictionary with MinMax Dists for all paths
     """
     graph = build_graph(Edges)
-    nodes = np.unique(Edges[:, :2])
+    nodes = np.unique(Edges[:, :2]).astype(int)
 
     # Store all MinMax distances
-    minmax_matrix = np.zeros((len(nodes), len(nodes)), dtype=np.float32)
-    #minmax_matrix = np.zeros((len(nodes), len(nodes)))
+    minmax_matrix.fill(0)
     # Perform DFS from each node to find maximum edge weights to other nodes
-    for node in nodes:
-        #print(node)
+    for node in tqdm(nodes):
         visited = defaultdict(bool)
-        #visited = np.zeros((nodes.max() + 1), dtype=bool) 
-        dfs(node, node, graph, visited, minmax_matrix, 0)
-        #print(minmax_matrix)
+        #dfs(node, node, graph, visited, minmax_matrix, 0)
+        dfs(node, graph, visited, minmax_matrix)
+
         
     return minmax_matrix
 
@@ -81,12 +97,10 @@ def cvdd(X, y, k = 5, distance = euclidean):
     stats["fDen"] = stats["Den"] / np.max(stats["Den"])
 
     # set drD to euclidean distances in the beginning
-    #drD = squareform(pdist(X))
     print("start computing pairwise distances")
-
     drD = pairwise_distances(X, X)
-
-    print("finished computing pairwise distances")
+    #drD = drD.astype(np.float32)
+    print("Memory usage np.float64 in MB:", drD.nbytes / 1e6)
 
     # use broadcasting to speed up computation
     den_reshaped = stats["Den"].reshape(-1,1)
@@ -103,31 +117,14 @@ def cvdd(X, y, k = 5, distance = euclidean):
     fRel = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
     relD = fRel * nD
 
-    # fRel = np.zeros((n, n))
-    # # initialize Matrix for sum of Den(x_i) and Den(x_j)
-    # nD = np.zeros((n, n))
-    # for i in trange(n):
-    #     #print(stats["Den"][i])
-    #     for j in range(n):
-    #         if i < j:
-
-    #             # compute nD(x_i, x_j)
-    #             nD[i, j] = stats["Den"][i] + stats["Den"][j]
-    #             nD[j, i] = stats["Den"][j] + stats["Den"][i]
-            
-    #             # Relative Density (Def. 5)
-    #             Rel_ij = stats["Den"][i] / stats["Den"][j]
-    #             Rel_ji = stats["Den"][j] / stats["Den"][i]
-            
-    #             # mutual Density factor (Def. 6)
-    #             fRel[i, j] = 1 - np.exp(-(Rel_ij + Rel_ji - 2))
-    #             fRel[j, i] = 1 - np.exp(-(Rel_ji + Rel_ij - 2))
-
-    # relD = fRel * nD
-
+    # free up some memory
+    del Rel_ij, Rel_ji, fRel, nD
 
     drD += relD
     
+    # clean up memory
+    del relD
+
     G = {
         "no_vertices": n,
         "MST_edges": np.zeros((n - 1, 3)),
@@ -139,13 +136,15 @@ def cvdd(X, y, k = 5, distance = euclidean):
     # compute MST using Lena's implementation of Prim algorithm
     Edges_drD, _ = MST_Edges(G, 0, drD)   
 
-    conD = MinMaxDists(Edges_drD)
+    conD = MinMaxDists(Edges_drD, drD)
 
     # use broadcasting and matrix matrix operations instead of loops
     fDen_reshaped = stats["fDen"].reshape(-1, 1)
 
     DD = ((fDen_reshaped * fDen_reshaped.T) ** 0.5) * conD
 
+    # clean up memory
+    del conD
 
     # Compute separations between one cluster and all others (Def. 11)
     seps = []
@@ -167,14 +166,12 @@ def cvdd(X, y, k = 5, distance = euclidean):
         }
 
         # compute all pairwise distances inside a cluster
-        #inter_dists = squareform(pdist(X[np.where(y == cluster)[0],:]))
         inter_dists = pairwise_distances(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
-
 
         # compute MST using Lena's implementation of Prim algorithm
         Edges_pD, _ = MST_Edges(G, 0, inter_dists)
 
-        pD = MinMaxDists(Edges_pD)
+        pD = MinMaxDists(Edges_pD, inter_dists)
 
         Mean_Ci = np.mean(pD)
         Std_Ci = np.std(pD)
@@ -205,26 +202,42 @@ if __name__ == "__main__":
     from sklearn.metrics.pairwise import pairwise_distances
     import pandas as pd
     label_encoder = LabelEncoder()
-    import reference_prim_mst
+    import psutil
+    import os
+    from memory_profiler import profile
 
-    # # fetch dataset
-    # ionosphere = fetch_ucirepo(id=52)
+
+
+    # fetch dataset
+    ionosphere = fetch_ucirepo(id=52)
+
+    # data (as pandas dataframes)
+    X_ion = ionosphere.data.features
+    y_ion = ionosphere.data.targets
+
+    y_ion = label_encoder.fit_transform(y_ion['Class'])
+
+
+
+    # time wiht old version -> 0.67 sec
+    # time with new version -> 0.45 sec
+    start = time()
+    print(cvdd(np.array(X_ion), np.array(y_ion)))
+    stop = time()
+    #print(stop-start)
+
+    # fetch dataset
+    # iris = fetch_ucirepo(id=53)
 
     # # data (as pandas dataframes)
-    # X_ion = ionosphere.data.features
-    # y_ion = ionosphere.data.targets
+    # X_iris = iris.data.features
+    # y_iris = iris.data.targets
 
-    # y_ion = label_encoder.fit_transform(y_ion['Class'])
+    # y_iris = label_encoder.fit_transform(y_iris['class'])
 
-    #time wiht old version -> 0.67 sec
-    #time with new version -> 0.45 sec
-    # start = time()
-    # print(cvdd(np.array(X_ion), np.array(y_ion)))
-    # stop = time()
-    # print(stop-start)
 
-    # iris = load_iris()
-    # X_iris, y_iris = iris['data'], iris['target']
+    # # iris = load_iris()
+    # # X_iris, y_iris = iris['data'], iris['target']
     # start = time()
     # print(cvdd(np.array(X_iris), np.array(y_iris)))
     # stop = time()
