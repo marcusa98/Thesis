@@ -9,6 +9,7 @@ from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import pairwise_distances
 import sys
 from tqdm import tqdm
+from distance_metric import get_dc_dist_matrix
 
 
 def build_graph(Edges): 
@@ -71,7 +72,7 @@ def MinMaxDists(Edges, minmax_matrix):
     return minmax_matrix
 
 
-def cvdd(X, y, k = 5, distance = euclidean):
+def cvdd(X, y, k = 5, dc_distance = False):
     """
     Compute CVDD of a clustering solution.
 
@@ -84,7 +85,11 @@ def cvdd(X, y, k = 5, distance = euclidean):
     """  
     n = len(y)
     stats = {}
-    n_clusters = len(np.unique(y))
+    # noise is not a cluster
+    if any(y == -1):
+        n_clusters = len(np.unique(y)) - 1
+    else:
+        n_clusters = len(np.unique(y))
 
     # get k Nearest neighbors
     knn = NearestNeighbors(n_neighbors =  k + 1).fit(X)
@@ -98,7 +103,10 @@ def cvdd(X, y, k = 5, distance = euclidean):
 
     # set drD to euclidean distances in the beginning
     print("start computing pairwise distances")
-    drD = pairwise_distances(X, X)
+    if dc_distance:
+        drD = get_dc_dist_matrix(X, k)
+    else:
+        drD = pairwise_distances(X, X)
     #drD = drD.astype(np.float32)
     print("Memory usage np.float64 in MB:", drD.nbytes / 1e6)
 
@@ -166,7 +174,10 @@ def cvdd(X, y, k = 5, distance = euclidean):
         }
 
         # compute all pairwise distances inside a cluster
-        inter_dists = pairwise_distances(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        if dc_distance:
+            inter_dists = get_dc_dist_matrix(X[np.where(y == cluster)[0],:])
+        else:
+            inter_dists = pairwise_distances(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
 
         # compute MST using Lena's implementation of Prim algorithm
         Edges_pD, _ = MST_Edges(G, 0, inter_dists)
@@ -202,9 +213,7 @@ if __name__ == "__main__":
     from sklearn.metrics.pairwise import pairwise_distances
     import pandas as pd
     label_encoder = LabelEncoder()
-    import psutil
     import os
-    from memory_profiler import profile
 
 
 
@@ -217,29 +226,29 @@ if __name__ == "__main__":
 
     y_ion = label_encoder.fit_transform(y_ion['Class'])
 
+    print(np.unique(y_ion))
 
+    # # time wiht old version -> 0.67 sec
+    # # time with new version -> 0.45 sec
+    # start = time()
+    print(cvdd(np.array(X_ion), np.array(y_ion), dc_distance = False))
+    # stop = time()
+    # print(stop-start)
 
-    # time wiht old version -> 0.67 sec
-    # time with new version -> 0.45 sec
-    start = time()
-    print(cvdd(np.array(X_ion), np.array(y_ion)))
-    stop = time()
-    #print(stop-start)
+    #fetch dataset
+    iris = fetch_ucirepo(id=53)
 
-    # fetch dataset
-    # iris = fetch_ucirepo(id=53)
+    # data (as pandas dataframes)
+    X_iris = iris.data.features
+    y_iris = iris.data.targets
 
-    # # data (as pandas dataframes)
-    # X_iris = iris.data.features
-    # y_iris = iris.data.targets
-
-    # y_iris = label_encoder.fit_transform(y_iris['class'])
+    y_iris = label_encoder.fit_transform(y_iris['class'])
 
 
     # # iris = load_iris()
     # # X_iris, y_iris = iris['data'], iris['target']
     # start = time()
-    # print(cvdd(np.array(X_iris), np.array(y_iris)))
+    # print(cvdd(np.array(X_iris), np.array(y_iris), dc_distance= True))
     # stop = time()
     # print(stop-start)
 
