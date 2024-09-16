@@ -6,6 +6,7 @@ This repository organizes datasets and functions that I used and implemented for
 ## Repository Structure
 `data/`: This folder contains datasets used for the analysis. 
 The datasets that are not available via ClustPy or UCI Machine Learning Repository are included here. A description of where each of the other dataset used int my thesis was sourced from is also provided.
+
 `functions/:`
 - `dcsi.py` density-based CVI between 0 and 1
 - `cvdd.py` density-based CVI between 0 and inf
