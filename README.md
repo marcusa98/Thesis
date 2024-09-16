@@ -21,6 +21,8 @@ I used an external Implementation for DBCV which can be found here: https://gith
 
 ## Citations
 Jana Gauss and Fabian Scheipl and Moritz Herrmann, "DCSI -- An improved measure of cluster separability based on separation and connectedness". https://arxiv.org/abs/2310.12806
+
 L. Hu and C. Zhong, "An Internal Validity Index Based on Density-Involved Distance," in IEEE Access, vol. 7, pp. 40038-40051, 2019,
 doi: 10.1109/ACCESS.2019.2906949. keywords: {Indexes;Density measurement;Clustering algorithms;Estimation;Partitioning algorithms;Periodic structures;Information science;Crisp clustering;cluster validity index;arbitrary-shaped clusters},
+
 Dunn, J. C. (1973). A Fuzzy Relative of the ISODATA Process and Its Use in Detecting Compact Well-Separated Clusters. Journal of Cybernetics, 3(3), 32–57. https://doi.org/10.1080/01969727308546046
