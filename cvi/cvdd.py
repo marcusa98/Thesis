@@ -3,13 +3,10 @@ from scipy.spatial.distance import euclidean
 from scipy.spatial.distance import pdist, squareform
 from sklearn.neighbors import NearestNeighbors
 from collections import defaultdict
-from clustpy.data import load_iris, load_mnist, load_kmnist, load_fmnist, load_pendigits, load_coil20
-from DBCV_Lena import MST_Edges
-from scipy.sparse import csr_matrix
+#from clustpy.data import load_iris, load_mnist, load_kmnist, load_fmnist, load_pendigits, load_coil20
+from mst import MST_Edges
 from sklearn.metrics.pairwise import pairwise_distances
-import sys
 from tqdm import tqdm
-from distance_metric import get_dc_dist_matrix
 
 
 def build_graph(Edges): 
@@ -72,7 +69,7 @@ def MinMaxDists(Edges, minmax_matrix):
     return minmax_matrix
 
 
-def cvdd(X, y, k = 5, dc_distance = False):
+def cvdd(X, y, k = 5):
     """
     Compute CVDD of a clustering solution.
 
@@ -103,10 +100,7 @@ def cvdd(X, y, k = 5, dc_distance = False):
     stats["fDen"] = stats["Den"] / np.max(stats["Den"])
 
     # set drD to euclidean distances in the beginning
-    if dc_distance:
-        drD = get_dc_dist_matrix(X, k)
-    else:
-        drD = pairwise_distances(X, X)
+    drD = pairwise_distances(X, X)
         
     # use broadcasting to speed up computation
     den_reshaped = stats["Den"].reshape(-1,1)
@@ -172,15 +166,12 @@ def cvdd(X, y, k = 5, dc_distance = False):
         }
 
         # compute all pairwise distances inside a cluster
-        if dc_distance:
-            inter_dists = get_dc_dist_matrix(X[np.where(y == cluster)[0],:])
-        else:
-            inter_dists = pairwise_distances(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        intra_dists = pairwise_distances(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
 
         # compute MST using Lena's implementation of Prim algorithm
-        Edges_pD, _ = MST_Edges(G, 0, inter_dists)
+        Edges_pD, _ = MST_Edges(G, 0, intra_dists)
 
-        pD = MinMaxDists(Edges_pD, inter_dists)
+        pD = MinMaxDists(Edges_pD, intra_dists)
 
         Mean_Ci = np.mean(pD)
         Std_Ci = np.std(pD)

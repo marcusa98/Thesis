@@ -2,8 +2,7 @@ import numpy as np
 from scipy.spatial.distance import euclidean
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import pdist, squareform
-from DBCV_Lena import MST_Edges
-
+from mst import MST_Edges
 
 def separation(x,y):
     """
@@ -62,14 +61,14 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         corepoints_cluster = []
 
         # compute all pairwise distances inside a cluster
-        #inter_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
-        inter_dists = squareform(pdist(X[np.where(y == cluster)[0],:]))
+        #intra_dists = distance_matrix(X[np.where(y == cluster)[0],:], X[np.where(y == cluster)[0],:])
+        intra_dists = squareform(pdist(X[np.where(y == cluster)[0],:]))
 
 
         # compute eps for cluster according to Definition 4.6
         # set first minPts*2 - 1 closest distances to np.inf
         # this is supposed to be faster than sorting the whole matrix and selecting the respective column
-        temp = inter_dists.copy()
+        temp = intra_dists.copy()
         for _ in range(minPts*2): # minPts*2, first minima is 0 because its point itself and then minPts*2 - 1 closest points
             min_inds = np.argmin(temp, axis = 1)
             rows = np.arange(temp.shape[0])
@@ -79,7 +78,7 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         eps["eps " + str(cluster)] = np.median(np.min(temp, axis = 1))
                 
         # store all corepoints in a cluster to compute separation
-        for indx, point_dists in enumerate(inter_dists):
+        for indx, point_dists in enumerate(intra_dists):
             if sum(1 for value in point_dists if value <= eps["eps " + str(cluster)]) >= (minPts + 1):  # because a point is always in it's own eps-neighborhood
                 corepoints_cluster.append(list(X[np.where(y == cluster)[0],:][indx,:])) # add point to corepoints_cluster
 
@@ -89,12 +88,12 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
 
 
         # get corepoint indices
-        corepoint_inds = np.sum(inter_dists <= eps["eps " + str(cluster)], axis=1) >= (minPts + 1) # +1 because distance to itself is 0
+        corepoint_inds = np.sum(intra_dists <= eps["eps " + str(cluster)], axis=1) >= (minPts + 1) # +1 because distance to itself is 0
 
         #print(corepoint_inds)
 
         # extract the distancematrix for corepoints only
-        inter_dists_corepoints = inter_dists[corepoint_inds][:, corepoint_inds]
+        intra_dists_corepoints = intra_dists[corepoint_inds][:, corepoint_inds]
 
 
         if len(corepoints_cluster) < 2:
@@ -109,7 +108,7 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         }
 
         # compute MST using Lena's implementation of Prim algorithm
-        Edges, Degrees = MST_Edges(G, 0, inter_dists_corepoints)
+        Edges, Degrees = MST_Edges(G, 0, intra_dists_corepoints)
 
         connectedness["cluster " + str(cluster)] = np.max(Edges[:,2])
 
@@ -145,3 +144,25 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
 
 
         return np.mean(dcsis)
+
+
+
+if __name__=="__main__":
+    # from clustpy.data import load_har, load_letterrecognition, load_htru2, load_mice_protein, load_pendigits,\
+    # load_coil20, load_coil100, load_cmu_faces, load_optdigits, load_usps, load_mnist, load_fmnist, load_kmnist ,load_video_keck_gesture, load_video_weizmann
+    # from ucimlrepo import fetch_ucirepo 
+    # from sklearn.preprocessing import LabelEncoder
+    # # create Label encoder 
+    # label_encoder = LabelEncoder()
+
+    # iris = fetch_ucirepo(id=53)
+
+    # # data (as pandas dataframes)
+    # X_iris = np.array(iris.data.features)
+    # y_iris = iris.data.targets
+
+    # y_iris = np.array(label_encoder.fit_transform(y_iris['class']))
+
+    # # # print(X_iris)
+    # # # print(y_iris)
+    # print(dcsi(X_iris, y_iris))
