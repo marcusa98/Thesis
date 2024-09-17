@@ -9,12 +9,14 @@ Necessary dependencies to run the files in this repo can be installed through `p
 
 ## Repository Structure
 `data/`: This folder contains datasets used for the analysis. 
-The datasets that are not available via ClustPy or UCI Machine Learning Repository are included here. A description of where each of the other dataset used int my thesis was sourced from is also provided.
+The datasets that are not available via ClustPy or UCI Machine Learning Repository are included here. `data_info.txt` provides info on where each of the other datasets used in my thesis was sourced from.
 
 `functions/:`
 - `dcsi.py` density-based CVI between 0 and 1
 - `cvdd.py` density-based CVI between 0 and inf
 - `dunn_index.py` non-density based CVI between 0 and inf
+
+`sample_evaluation_script.py`: contains the evaluation pipeline with some example datasets loaded.
 
 **Note**
 I used an external Implementation for DBCV which can be found here: https://github.com/FelSiq/DBCV
