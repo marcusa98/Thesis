@@ -2,12 +2,24 @@ import numpy as np
 from scipy.spatial.distance import euclidean
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import pdist, squareform
-from mst import MST_Edges
+from cvi.mst import MST_Edges
 
 def separation(x,y):
     """
-    x...corepoints of cluster i
-    y...corepoints of cluster j
+    Computes the separation distance between two sets of core points.
+
+    This function calculates the minimum distance between two clusters of core points.
+    It computes the pairwise distance matrix of the combined set of core points and 
+    extracts the distances between the two clusters.
+
+    Parameters:
+    x (array-like): A 2D array of shape (m, n) where m is the number of core points in cluster i
+                    and n is the number of dimensions. Each row represents a core point.
+    y (array-like): A 2D array of shape (p, n) where p is the number of core points in cluster j
+                    and n is the number of dimensions. Each row represents a core point.
+
+    Returns:
+    float: The minimum distance between any core point in cluster i and any core point in cluster j.
     """
 
     stacked_matrix = np.vstack((x, y))
@@ -29,7 +41,7 @@ def separation(x,y):
 
 def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
     """
-    Computes DCSI of a clustering solution.
+    Computes DCSI score of a clustering solution.
 
     Parameters:
         X (array-like): Dataset.
@@ -90,8 +102,6 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
         # get corepoint indices
         corepoint_inds = np.sum(intra_dists <= eps["eps " + str(cluster)], axis=1) >= (minPts + 1) # +1 because distance to itself is 0
 
-        #print(corepoint_inds)
-
         # extract the distancematrix for corepoints only
         intra_dists_corepoints = intra_dists[corepoint_inds][:, corepoint_inds]
 
@@ -148,21 +158,19 @@ def dcsi(X, y, eps = 0.6, minPts = 5, distance = euclidean):
 
 
 if __name__=="__main__":
-    # from clustpy.data import load_har, load_letterrecognition, load_htru2, load_mice_protein, load_pendigits,\
-    # load_coil20, load_coil100, load_cmu_faces, load_optdigits, load_usps, load_mnist, load_fmnist, load_kmnist ,load_video_keck_gesture, load_video_weizmann
-    # from ucimlrepo import fetch_ucirepo 
-    # from sklearn.preprocessing import LabelEncoder
-    # # create Label encoder 
-    # label_encoder = LabelEncoder()
+    from clustpy.data import load_har, load_letterrecognition, load_htru2, load_mice_protein, load_pendigits,\
+    load_coil20, load_coil100, load_cmu_faces, load_optdigits, load_usps, load_mnist, load_fmnist, load_kmnist ,load_video_keck_gesture, load_video_weizmann
+    from ucimlrepo import fetch_ucirepo 
+    from sklearn.preprocessing import LabelEncoder
+    # create Label encoder 
+    label_encoder = LabelEncoder()
 
-    # iris = fetch_ucirepo(id=53)
+    iris = fetch_ucirepo(id=53)
 
-    # # data (as pandas dataframes)
-    # X_iris = np.array(iris.data.features)
-    # y_iris = iris.data.targets
+    # data (as pandas dataframes)
+    X_iris = np.array(iris.data.features)
+    y_iris = iris.data.targets
 
-    # y_iris = np.array(label_encoder.fit_transform(y_iris['class']))
+    y_iris = np.array(label_encoder.fit_transform(y_iris['class']))
 
-    # # # print(X_iris)
-    # # # print(y_iris)
-    # print(dcsi(X_iris, y_iris))
+    print(dcsi(X_iris, y_iris))

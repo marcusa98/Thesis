@@ -1,0 +1,25 @@
+## UCIMLREPO data
+
+iris = fetch_ucirepo(id=53)
+ionosphere = fetch_ucirepo(id=52)
+wine = fetch_ucirepo(id=109)
+glass_identification = fetch_ucirepo(id=42)
+breast_cancer_wisconsin_diagnostic = fetch_ucirepo(id=17)
+yeast = fetch_ucirepo(id=110)
+
+## CLUSTPY data
+mnist = load_mnist()
+fmnist = load_fmnist()
+weizmann = load_video_weizmann()
+keck = load_video_keck_gesture()
+har = load_har()
+letter = load_letterrecognition()
+htru2 = load_htru2()
+mice = load_mice_protein()
+pen = load_pendigits()
+coil20 = load_coil20()
+coil100 = load_coil100()
+res1 = load_cmu_faces()
+opt = load_optdigits()
+usps = load_usps()
+kmnist = load_kmnist()

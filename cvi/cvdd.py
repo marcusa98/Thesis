@@ -4,13 +4,34 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.neighbors import NearestNeighbors
 from collections import defaultdict
 #from clustpy.data import load_iris, load_mnist, load_kmnist, load_fmnist, load_pendigits, load_coil20
-from mst import MST_Edges
+from cvi.mst import MST_Edges
 from sklearn.metrics.pairwise import pairwise_distances
 from tqdm import tqdm
 
-
 def build_graph(Edges): 
-    # function to represent graph as dictionary of lists
+    """
+    Construct a graph from an edge list representation.
+
+    This function takes a list of edges and builds a graph represented as a dictionary of adjacency lists.
+    Each key in the dictionary corresponds to a node in the graph, and the associated value is a list of
+    tuples where each tuple represents a neighboring node and the weight of the edge connecting the nodes.
+
+    Parameters:
+    Edges (np.ndarray or list of tuples): A 2D array or list where each entry represents an edge with three components:
+                                           - Outgoing node (int)
+                                           - Incoming node (int)
+                                           - Edge weight (float)
+
+    Returns:
+    dict: A dictionary where keys are nodes and values are lists of tuples. Each tuple contains:
+          - Neighbor node (int)
+          - Edge weight (float)
+
+    Example:
+    >>> edges = np.array([[0, 1, 10], [1, 2, 5], [2, 0, 15]])
+    >>> build_graph(edges)
+    {0: [(1, 10), (2, 15)], 1: [(0, 10), (2, 5)], 2: [(1, 5), (0, 15)]}
+    """
     graph = defaultdict(list)
     for edge in Edges:
         u, v, w = edge
@@ -33,6 +54,25 @@ def build_graph(Edges):
 #             dfs(original_node, neighbor, graph, visited, minmax_matrix, current_max)
 
 def dfs(original_node, graph, visited, minmax_matrix):
+    """
+    Perform Depth-First Search (DFS) from a given starting node to compute the maximum edge weights.
+
+    This function traverses the graph using DFS starting from `original_node`. For each node visited,
+    it updates the `minmax_matrix` with the maximum edge weight encountered along the path from
+    `original_node` to that node.
+
+    Parameters:
+    original_node (int): The starting node for the DFS traversal.
+    graph (dict): A dictionary where keys are nodes and values are lists of tuples. Each tuple
+                  represents a neighbor node and the weight of the edge connecting the nodes.
+    visited (dict): A dictionary where keys are nodes and values are boolean flags indicating
+                    whether a node has been visited.
+    minmax_matrix (np.ndarray): A 2D numpy array where the entry at (i, j) is updated with the
+                                maximum edge weight encountered on the path from `i` to `j`.
+
+    Returns:
+    None: The function updates `minmax_matrix` in place.
+    """
     stack = [(original_node, original_node, 0)]  # Stack contains tuples of (original_node, current_node, current_max)
     
     while stack:
@@ -50,9 +90,23 @@ def dfs(original_node, graph, visited, minmax_matrix):
 
 def MinMaxDists(Edges, minmax_matrix):
     """
-    Edges...np.array of shape n-1 x 3 with columns outgoing node, incoming node, path weight
+    Compute the maximum edge weights for all pairs of nodes on a MST.
 
-    returns dictionary with MinMax Dists for all paths
+    This function builds a graph from the provided edge list and then uses Depth-First Search (DFS)
+    to determine the maximum edge weight encountered on the path between each pair of nodes. The result
+    is stored in `minmax_matrix`, where the entry at (i, j) represents the maximum edge weight on any
+    path from node `i` to node `j`.
+
+    Parameters:
+    Edges (np.ndarray): A numpy array of shape (n-1, 3) where each row represents an edge with columns:
+                        - Outgoing node (int)
+                        - Incoming node (int)
+                        - Path weight (float)
+    minmax_matrix (np.ndarray): A 2D numpy array of shape (num_nodes, num_nodes) that will be filled
+                                with the maximum edge weights for all pairs of nodes.
+
+    Returns:
+    np.ndarray: The `minmax_matrix` with updated maximum edge weights for all paths between nodes.
     """
     graph = build_graph(Edges)
     nodes = np.unique(Edges[:, :2]).astype(int)
