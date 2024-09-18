@@ -5,7 +5,7 @@ Despite the existence of appropriate evaluation metrics, it remains a significan
 
 ## About this Repo
 This repository organizes files and functions that I used to conduct my masterthesis.
-Necessary dependencies to run the files in this repo can be installed through `pip install -r requirements.txt`.
+`Python 3.10` >= is required. Necessary dependencies to run the files in this repo can be installed through `pip install -r requirements.txt`.
 
 ## Repository Structure
 `data/`: This folder contains datasets used for the analysis. 
